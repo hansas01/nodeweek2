@@ -55,6 +55,5 @@ const campsiteSchema = new Schema({
     timestamps: true
 });
 
-
 const Campsite = mongoose.model('Campsite', campsiteSchema);
 module.exports = Campsite;
