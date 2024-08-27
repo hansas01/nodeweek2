@@ -4,13 +4,17 @@ const User = require('./models/user');
 const JwtStrategy = require('passport-jwt').Strategy;
 const ExtractJwt = require('passport-jwt').ExtractJwt;
 const jwt = require('jsonwebtoken'); // used to create, sign, and verify tokens
-
 const config = require('./config.js');
 
+// Add this line to import the Facebook strategy
+const FacebookTokenStrategy = require('passport-facebook-token');
+
+// Local strategy for username and password
 exports.local = passport.use(new LocalStrategy(User.authenticate()));
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
 
+// JWT strategy for handling token-based authentication
 exports.getToken = function(user) {
     return jwt.sign(user, config.secretKey, {expiresIn: 3600});
 };
@@ -39,6 +43,7 @@ exports.jwtPassport = passport.use(
 
 exports.verifyUser = passport.authenticate('jwt', {session: false});
 
+// Middleware to verify if the user is an admin
 exports.verifyAdmin = (req, res, next) => {
   if (req.user && req.user.admin) {
       return next();
@@ -48,3 +53,32 @@ exports.verifyAdmin = (req, res, next) => {
       return next(err);
   }
 };
+
+// Add the Facebook authentication strategy
+exports.facebookPassport = passport.use(
+  new FacebookTokenStrategy(
+    {
+      clientID: config.facebook.clientId,
+      clientSecret: config.facebook.clientSecret
+    },
+    (accessToken, refreshToken, profile, done) => {
+      User.findOne({ facebookId: profile.id }).then((user) => {
+        if (user) {
+          return done(null, user);
+        } else {
+          user = new User({ username: profile.displayName });
+          user.facebookId = profile.id;
+          user.firstname = profile.name.givenName;
+          user.lastname = profile.name.familyName;
+          user.save((err, user) => {
+            if (err) {
+              return done(err, false);
+            } else {
+              return done(null, user);
+            }
+          });
+        }
+      }).catch((err) => done(err, false));
+    }
+  )
+);
